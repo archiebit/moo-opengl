@@ -1,0 +1,78 @@
+# Вспомогательные функции.
+# ------------------------------------------------------------------------------
+define path
+$(foreach file,${1},"$(subst /,\,${file})")
+endef
+
+define name
+$(if $(or $(findstring /,${1}),$(findstring \,${1})),,${1})
+endef
+
+define spot
+$(shell if not exist $(call path,$(dir ${1})) md $(call path,$(dir ${1})))
+endef
+
+
+
+
+# Проверка основных констант.
+# ------------------------------------------------------------------------------
+ifndef config
+$(error config is undefined)
+else
+ifeq '$(call name,${config})'           ''
+$(error Variable 'config' contains '/' or '\')
+endif
+ifneq '$(words $(subst -, ,${config}))' '2'
+$(error Variable 'config' must match pattern: 'name-mode')
+endif
+endif
+
+
+ifndef target
+$(error Variable 'target' is undefined)
+else
+ifeq  '$(call name,${target})'          ''
+$(error Variable 'target' contains '/' or '\')
+endif
+ifeq  '$(words $(subst ., ,${target}))' '1'
+$(error Variable 'target' must match pattern: 'name.extension')
+endif
+endif
+
+
+
+
+# Настройка флагов.
+# ------------------------------------------------------------------------------
+incdirs  := $(addprefix -I ,${incdirs})
+libdirs  := $(addprefix -L ,${libdirs})
+libs     := $(addprefix -l ,${libs})
+filename := ${target}
+
+obj      := out/${config}/obj
+out      := out/${config}/out
+bin      := out/${config}/out/bin
+
+oflags   := -Wall -Wextra -std=c++23 -masm=intel -c
+
+ifeq '$(lastword $(subst ., ,${filename}))' 'dll'
+oflags   += -fpic
+endif
+
+ifeq      '$(word 2,$(subst -, ,${config}))' 'dev'
+oflags   += -O0 -g
+else ifeq '$(word 2,$(subst -, ,${config}))' 'rel'
+oflags   += -O2 -D NDEBUG
+else
+$(error Variable 'config' contains invalid mode. Mode must match 'dev' or 'rel')
+endif
+
+
+ifeq      '$(lastword $(subst ., ,${filename}))' 'exe'
+override target := ${bin}/${filename}
+else ifeq '$(lastword $(subst ., ,${filename}))' 'dll'
+override target := ${bin}/${filename}
+else
+override target := ${out}/${filename}
+endif
