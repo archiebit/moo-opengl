@@ -63,7 +63,7 @@ endif
 ifeq      '$(word 2,$(subst -, ,${config}))' 'dev'
 oflags   += -O0 -g
 else ifeq '$(word 2,$(subst -, ,${config}))' 'rel'
-oflags   += -O2 -D NDEBUG
+oflags   += -O3 -D NDEBUG
 else
 $(error Variable 'config' contains invalid mode. Mode must match 'dev' or 'rel')
 endif
