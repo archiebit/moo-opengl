@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <cstdint>
 
 
 namespace moo
@@ -46,6 +47,23 @@ namespace moo
 
         std::vector<constant> constants;
         std::vector<function> functions;
+    };
+
+
+    class context::constant
+    {
+    public:
+       ~constant( );
+        constant( const constant & other );
+        constant( constant &&      other );
+        constant( std::string && tag, std::uint64_t val );
+
+        constant & operator=( const constant & other );
+        constant & operator=( constant &&      other );
+
+    private:
+        std::string   tag;
+        std::uint64_t val;
     };
 }
 
