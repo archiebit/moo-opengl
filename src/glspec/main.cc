@@ -6,24 +6,6 @@
 using namespace moo;
 
 
-static void print_usage( );
-
-
-int main( int argc, char * argv[] )
-{
-    if( not context::check_command_line( argc, argv ) )
-    {
-        print_usage( );
-
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
-}
-
-
-
-
 static void print_usage( )
 {
     static const char message[]
@@ -47,4 +29,29 @@ static void print_usage( )
     };
 
     std::cerr << message << std::endl;
+}
+
+
+
+
+int main( int argc, char * argv[] )
+{
+    std::string input;
+    ordinal     major;
+    ordinal     minor;
+    profile     type;
+    bool        fine;
+
+
+    fine = context::check_command_line( argc, argv, major, minor, type, input );
+
+
+    if( fine )
+    {
+        
+    }
+    else print_usage( );
+
+
+    return fine ? EXIT_SUCCESS : EXIT_FAILURE;
 }
