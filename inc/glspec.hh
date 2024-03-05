@@ -11,6 +11,7 @@ namespace moo
 
     enum  profile : unsigned int
     {
+        NONE,
         CORE,
         COMPATIBLE
     };
@@ -30,7 +31,7 @@ namespace moo
         context parse( const std::string & filename, ordinal major, ordinal minor, profile type );
 
         static
-        bool    check_command_line( int argc, char * argv[] );
+        bool    check_command_line( int argc, char * argv[], ordinal & major, ordinal & minor, profile & type, std::string & inputs );
 
     private:
         context( );
