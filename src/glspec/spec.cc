@@ -14,6 +14,9 @@ namespace moo
         auto profile  = false;
         auto filename = false;
 
+        unsigned int maj;
+        unsigned int min;
+
         for( int i = 1; i < argc; ++i )
         {
             auto string = argv[ i ];
@@ -21,9 +24,6 @@ namespace moo
             if( std::strncmp( string, "/V", 2 ) == 0 )
             {
                 if( version ) return false;
-
-                unsigned int maj;
-                unsigned int min;
 
                 if( std::sscanf( string, "/V:%1u.%1u", & maj, & min ) != 2 )
                 {
@@ -67,6 +67,10 @@ namespace moo
             }
         }
 
-        return version and profile and filename;
+        if( maj >= 3 and min >= 2 )
+        {
+            return version and profile and filename;
+        }
+        else return version and filename;
     }
 }
