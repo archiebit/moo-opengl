@@ -3,19 +3,16 @@
 
 namespace moo
 {
-    bool context::check_command_line( int argc, char * argv[] )
+    bool context::check_command_line( int argc, char * argv[], ordinal & major, ordinal & minor, profile & type, std::string & inputs )
     {
         if( argc < 3 or argc > 4 or not argv )
         {
             return false;
         }
 
-        auto version  = false;
-        auto profile  = false;
-        auto filename = false;
-
-        unsigned int maj;
-        unsigned int min;
+        bool version  = false;
+        bool profile  = false;
+        bool filename = false;
 
         for( int i = 1; i < argc; ++i )
         {
@@ -25,12 +22,17 @@ namespace moo
             {
                 if( version ) return false;
 
+                unsigned int maj = 0;
+                unsigned int min = 0;
+
                 if( std::sscanf( string, "/V:%1u.%1u", & maj, & min ) != 2 )
                 {
                     return false;
                 }
 
                 version = true;
+                major   = maj;
+                minor   = min;
 
                 continue;
             }
@@ -39,12 +41,14 @@ namespace moo
             {
                 if( profile ) return false;
 
-                if( std::strcmp( string, "/P:core"       ) == 0 ) profile = true;
-                if( std::strcmp( string, "/P:compatible" ) == 0 ) profile = true;
-
-                if( not profile )
+                if( std::strcmp( string, "/P:core"       ) == 0 )
                 {
-                    return false;
+                    profile = true; type = CORE;
+                }
+
+                if( std::strcmp( string, "/P:compatible" ) == 0 )
+                {
+                    profile = true; type = COMPATIBLE;
                 }
 
                 continue;
@@ -54,20 +58,21 @@ namespace moo
             {
                 if( filename ) return false;
 
-                char test;
+                char c;
 
-                if( std::sscanf( string, "/I:%c", & test ) != 1 )
+                if( std::sscanf( string, "/I:%c", & c ) != 1 )
                 {
                     return false;
                 }
 
                 filename = true;
+                inputs   = string + 3;
 
                 continue;
             }
         }
 
-        if( maj >= 3 and min >= 2 )
+        if( major >= 3 and minor >= 2 )
         {
             return version and profile and filename;
         }
