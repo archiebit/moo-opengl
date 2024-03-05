@@ -14,6 +14,10 @@ namespace moo
         bool profile  = false;
         bool filename = false;
 
+        major = 0;
+        minor = 0;
+        type  = NONE;
+
         for( int i = 1; i < argc; ++i )
         {
             auto string = argv[ i ];
