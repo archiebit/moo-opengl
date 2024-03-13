@@ -76,3 +76,5 @@ override target := ${bin}/${filename}
 else
 override target := ${out}/${filename}
 endif
+
+all: ${target}
