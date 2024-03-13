@@ -26,6 +26,11 @@ namespace moo
         void save_constants( std::ostream & target );
 
     protected:
+        static std::string version( int major, int minor, bool compatible );
+
+        static void declare_types( std::ostream & stream, std::size_t tab );
+        static void declare_begin( std::ostream & stream );
+
         std::vector<constant> constants;
         std::vector<function> functions;
     };
