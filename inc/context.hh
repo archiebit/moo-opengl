@@ -35,6 +35,9 @@ namespace moo
         void append_constants( std::ostream & stream );
         void append_functions( std::ostream & stream );
 
+        void implement_commands( std::ostream & stream );
+        void implement_functions( std::ostream & stream );
+
 
         int  major;
         int  minor;

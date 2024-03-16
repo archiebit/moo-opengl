@@ -6,11 +6,52 @@
 
 namespace moo
 {
+    static const char LF = '\n';
+
     static table name_list;
     static table type_list;
 
     static table symbol_list;
     static table output_list;
+
+
+    template <usize count>
+    static void   fill_listing( listing & out, const char * ( & list )[ count ] )
+    {
+        for( auto element : list )
+        {
+            for( auto pair : type_list )   if( pair.second.find( element ) != string::npos )
+            {
+                goto save;
+            }
+
+            for( auto pair : output_list ) if( pair.second.find( element ) != string::npos )
+            {
+                goto save;
+            }
+
+            continue;
+
+        save:
+            out.emplace( element );
+        }
+    }
+
+    static string make_context_type( const string & type, const string & version )
+    {
+        string out = type;
+        usize size = type.length( );
+        usize spot = type.find( "GL" );
+
+        if( spot < size )
+        {
+            out.insert( spot,      "::" );
+            out.insert( spot,   version );
+            out.insert( spot, "context" );
+        }
+
+        return out;
+    }
 }
 
 namespace moo
@@ -41,6 +82,11 @@ namespace moo
 
 
     string & function::name( )
+    {
+        return symbol_list.at( tag );
+    }
+
+    const string & function::name( ) const
     {
         return symbol_list.at( tag );
     }
@@ -115,6 +161,123 @@ namespace moo
         return str;
     }
 
+    void function::implementation( std::ostream & stream, const string & version ) const
+    {
+        static usize tag_tab;
+        static usize out_tab;
+
+        if( tag_tab == 0 ) for( const auto & pair : symbol_list )
+        {
+            tag_tab = std::max( tag_tab, pair.second.length( ) );
+        }
+
+        if( out_tab == 0 )
+        {
+            for( const auto & pair : output_list )
+            {
+                out_tab = std::max( out_tab, pair.second.length( ) );
+            }
+
+            out_tab += version.length( );
+            out_tab += 7;
+        }
+
+
+        string back = make_context_type( output_list.at( out ), version );
+
+        stream << std::left << std::setw( 4 ) << " ";
+        stream << std::setw( out_tab );
+        stream << back                  << " context";
+        stream << version               << "::";
+        stream << symbol_list.at( tag ) << "(";
+
+
+        usize i;
+        usize len = types.size( );
+
+        for( usize i = 0; i < len; ++i )
+        {
+            stream << ' ' << type_list[ types[ i ] ];
+            stream << ' ' << name_list[ names[ i ] ];
+
+            if( i != len - 1 ) stream << ',';
+        }
+
+        stream << ' ' << ')'                   << LF;
+        stream << std::setw( 4 ) << ' ' << '{' << LF;
+
+
+
+        if( name( ) == "glGetError" )
+        {
+            stream << std::setw( 8 ) << ' ';
+            stream << "return ( * call->glGetError )( );" << LF;
+            stream << std::setw( 4 ) << ' ';
+            stream << '}'                                 << LF;
+
+            return;
+        }
+
+        stream << std::setw( 4 ) << ' ';
+        stream << "#ifdef NDEBUG" << LF;
+
+        stream << std::setw( 8 ) << ' ';
+        stream << "return ( * call->" << name( ) << " )(";
+
+        for( i = 0; i < len; ++i )
+        {
+            stream << ' ' << name_list[ names[ i ] ];
+
+            if( i != len - 1 ) stream << ',';
+        }
+
+        stream << ' ' << ')' << ';' << LF;
+
+
+        stream << std::setw( 4 ) << ' ';
+        stream << "#else" << LF;
+
+        stream << std::setw( 8 ) << ' ';
+        stream << "while( ( * call->glGetError )( ) != GL_NO_ERROR );" << LF << LF;
+
+        stream << std::setw( 8 ) << ' ';
+
+        if( output_list.at( out ) == "GLvoid" )
+        {
+            stream << "( * call->" << name( ) << " )(";
+        }
+        else
+        {
+            stream << "auto back = ( * call->" << name( ) << " )(";
+        }
+
+        for( i = 0; i < len; ++i )
+        {
+            stream << ' ' << name_list[ names[ i ] ];
+
+            if( i != len - 1 ) stream << ',';
+        }
+
+        stream << ' ' << ')' << ';' << LF;
+
+        stream << std::setw( 8 ) << ' ';
+        stream << "auto code = ( * call->glGetError )( );" << LF << LF;
+
+        stream << std::setw( 8 ) << ' ';
+        stream << "if( code != GL_NO_ERROR )"             << LF;
+        stream << std::setw( 8 ) << ' ' << '{'            << LF;
+        stream << std::setw( 12 ) << ' ' << "throw code;"  << LF;
+        stream << std::setw( 8 ) << ' ' << '}'            << LF << LF;
+
+        if( output_list.at( out ) != "GLvoid" )
+        {
+            stream << std::setw( 8 ) << ' ' << "return back;" << LF;
+        }
+
+        stream << std::setw( 4 ) << ' ' << "#endif" << LF;
+        stream << std::setw( 4 ) << ' ' << '}'      << LF;
+    }
+
 
     void function::append_output( string && type )
     {
@@ -172,5 +335,40 @@ namespace moo
 
         types.emplace_back( ttype );
         names.emplace_back( tname );
+    }
+
+
+    void function::types_in_use( listing & integral, listing & floating, listing & versatile )
+    {
+        static const char * integral_list[]
+        {
+            "GLbyte",   "GLubyte",
+            "GLshort",  "GLushort",
+            "GLint",    "GLuint",
+            "GLint64",  "GLuint64",
+            "GLintptr", "GLsizeiptr"
+        };
+
+        static const char * floating_list[]
+        {
+            "GLdouble", "GLfloat", "GLhalf",
+            "GLclampd", "GLclampf"
+        };
+
+        static const char * versatile_list[]
+        {
+            "GLsizei", "GLfixed",
+            "GLvoid",  "GLboolean",
+            "GLchar",  "GLbitfield",
+            "GLenum",  "GLsync"
+        };
+
+
+        integral.clear( ), versatile.clear( ),
+        floating.clear( );
+
+        fill_listing(  integral,  integral_list );
+        fill_listing(  floating,  floating_list );
+        fill_listing( versatile, versatile_list );
     }
 }

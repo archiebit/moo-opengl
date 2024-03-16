@@ -11,82 +11,163 @@
 
 namespace moo
 {
+    static const char LF = '\n';
+}
+namespace moo
+{
     string context::version( )
     {
-        std::string result = "context<, , >";
+        std::stringstream ss;
 
-        if( compatible ) result.insert( 12, "COMPATIBLE" );
-        else             result.insert( 12,       "CORE" );
+        ss << '<' << major << ',';
+        ss << ' ' << minor << ',';
+        ss << ' ';
 
-        result.insert( 10, 1, '0' + minor );
-        result.insert(  8, 1, '0' + major );
+        if( compatible ) ss << "COMPATIBLE";
+        else             ss << "CORE";
 
-        return result;
+        ss << '>';
+
+        return ss.str( );
     }
 
     void context::append_datatypes( std::ostream & stream )
     {
-        static const char * const integral[]
-        {
-            "// Integral types.",
-            "using GLbyte     = signed char;",
-            "using GLshort    = signed short int;",
-            "using GLint      = signed int;",
-            "using GLint64    = signed long long int;",
-            "",
-            "using GLubyte    = unsigned char;",
-            "using GLushort   = unsigned short int;",
-            "using GLuint     = unsigned int;",
-            "using GLuint64   = unsigned long long int;",
-            "",
-            "using GLintptr   = signed long long int;",
-            "using GLsizeiptr = unsigned long long int;",
-            ""
-        };
+        listing integral, floating, versatile;
 
-        static const char * const floating[]
-        {
-            "// Floating types.",
-            "using GLfloat  = float;",
-            "using GLdouble = double;",
-            "using GLclampf = float;",
-            "using GLclampd = double;",
-            "",
-            "enum GLhalf    : signed short int { };",
-            ""
-        };
+        function::types_in_use( integral, floating, versatile );
 
-        static const char * const misclens[]
+        static const dict windows
         {
-            "// Misclenaus types.",
-            "using GLboolean  = bool;",
-            "using GLchar     = char;",
-            "using GLvoid     = void;",
-            "using GLsizei    = unsigned int;",
-            "using GLbitfield = unsigned int;",
-            "using GLintptr   = signed long long int;",
-            "using GLsizeiptr = unsigned long long int;",
-            "using GLenum     = GLenum32;",
-            "",
-            "enum GLsync      : unsigned long long int { };",
-            "enum GLfixed     : signed int             { };",
-            ""
+            { "GLbyte",     "signed char"            },
+            { "GLshort",    "signed short int"       },
+            { "GLint",      "signed int"             },
+            { "GLint64",    "signed long long int"   },
+
+            { "GLubyte",    "unsigned char"          },
+            { "GLushort",   "unsigned short int"     },
+            { "GLuint",     "unsigned int"           },
+            { "GLuint64",   "unsigned long long int" },
+
+            { "GLintptr",   "signed long long int"   },
+            { "GLsizeiptr", "unsigned long long int" },
+
+
+            { "GLfloat",  "float"            },
+            { "GLdouble", "double"           },
+            { "GLclampf", "float"            },
+            { "GLclampd", "double"           },
+            { "GLhalf",   "signed short int" },
+
+
+            { "GLboolean",  "bool"                   },
+            { "GLvoid",     "void"                   },
+            { "GLchar",     "char"                   },
+            { "GLsizei",    "unsigned int"           },
+            { "GLbitfield", "unsigned int"           },
+            { "GLintptr",   "signed long long int"   },
+            { "GLsizeiptr", "unsigned long long int" },
+            { "GLenum",     "GLenum32"               },
+            { "GLsync",     "unsigned long long int" },
+            { "GLfixed",    "signed int"             }
         };
 
 
-        for( auto string : integral )
+        usize tab;
+
+        if( integral.size( ) != 0 )
         {
-            stream << std::setw( 8 ) << ' ' << string << '\n';
+            for( tab = 0; const auto & type : integral )
+            {
+                tab = std::max( tab, type.length( ) );
+            }
+
+            stream << LF << LF;
+            stream << std::setw( 8 ) << ' ' << "// Integral types."                        << LF;
+            stream << std::setw( 4 ) << ' ' << "#if defined _WIN32 and defined __x86_64__" << LF;
+
+            for( const auto & type : integral )
+            {
+                stream << std::setw( 8 ) << ' ';
+
+                stream << "using " << std::setw( tab ) << type;
+                stream << " = "    << windows.at( type );
+                stream << ';'      << LF;
+            }
+
+            stream << std::setw( 4 ) << ' ' << "#else"                                                        << LF;
+            stream << std::setw( 4 ) << ' ' << "#    error Target platform or architecture is not supported!" << LF;
+            stream << std::setw( 4 ) << ' ' << "#endif"                                                       << LF;
         }
 
-        for( auto string : floating )
+
+        if( floating.size( ) != 0 )
         {
-            stream << std::setw( 8 ) << ' ' << string << '\n';
+            for( tab = 0; const auto & type : floating )
+            {
+                tab = std::max( tab, type.length( ) );
+            }
+
+            stream << LF << LF;
+            stream << std::setw( 8 ) << ' ' << "// Floating types."                        << LF;
+            stream << std::setw( 4 ) << ' ' << "#if defined _WIN32 and defined __x86_64__" << LF;
+
+            for( const auto & type : floating )
+            {
+                stream << std::setw( 8 ) << ' ';
+
+                if( type == "GLhalf" )
+                {
+                    stream << "enum  " << std::setw( tab ) << type;
+                    stream << " : "    << windows.at( type );
+                    stream << " { };"  << LF;
+                }
+                else
+                {
+                    stream << "using " << std::setw( tab ) << type;
+                    stream << " = "    << windows.at( type );
+                    stream << ';'      << LF;
+                }
+            }
+
+            stream << std::setw( 4 ) << ' ' << "#else"                                                        << LF;
+            stream << std::setw( 4 ) << ' ' << "#    error Target platform or architecture is not supported!" << LF;
+            stream << std::setw( 4 ) << ' ' << "#endif"                                                       << LF;
         }
 
-        for( auto string : misclens )
+
+        if( versatile.size( ) != 0 )
         {
-            stream << std::setw( 8 ) << ' ' << string << '\n';
+            for( tab = 0; const auto & type : versatile )
+            {
+                tab = std::max( tab, type.length( ) );
+            }
+
+            stream << LF << LF;
+            stream << std::setw( 8 ) << ' ' << "// Versatile types."                       << LF;
+            stream << std::setw( 4 ) << ' ' << "#if defined _WIN32 and defined __x86_64__" << LF;
+
+            for( const auto & type : versatile )
+            {
+                stream << std::setw( 8 ) << ' ';
+
+                if( type == "GLsync" or type == "GLfixed" )
+                {
+                    stream << "enum  " << std::setw( tab ) << type;
+                    stream << " : "    << windows.at( type );
+                    stream << " { };"  << LF;
+                }
+                else
+                {
+                    stream << "using " << std::setw( tab ) << type;
+                    stream << " = "    << windows.at( type );
+                    stream << ';'      << LF;
+                }
+            }
+
+            stream << std::setw( 4 ) << ' ' << "#else"                                                        << LF;
+            stream << std::setw( 4 ) << ' ' << "#    error Target platform or architecture is not supported!" << LF;
+            stream << std::setw( 4 ) << ' ' << "#endif"                                                       << LF;
         }
     }
 
@@ -121,22 +202,21 @@ namespace moo
             "namespace moo",
             "{",
             "    template <>",
-            "    class ",
+            "    class context",
             "    {",
             "    public:",
             "       ~context( );",
             "        context( );",
             "        context( const context & ) = delete;",
-            "        context( context &&      ) = delete;",
-            ""
+            "        context( context &&      ) = delete;"
         };
 
         for( std::size_t i = 0; auto string : code )
         {
             stream << string;
 
-            if( i == 3 ) stream << version( ) << '\n';
-            else         stream << '\n';
+            if( i == 3 ) stream << version( ) << LF;
+            else         stream << LF;
 
             i += 1;
         }
@@ -148,7 +228,8 @@ namespace moo
         {
             "",
             "    private:",
-            "        void * implementation;",
+            "        struct commands;",
+            "        struct commands * call;",
             "    };",
             "}"
         };
@@ -195,12 +276,14 @@ namespace moo
 
 
         append_file_head( head );
-
         class_head( head );
         append_constants( head );
         append_datatypes( head );
         append_functions( head );
         class_foot( head );
+
+        implement_commands( impl );
+        implement_functions( impl );
 
 
         head.close( );
@@ -235,8 +318,9 @@ namespace moo
 
         if( small.size( ) > 0 )
         {
-            stream << "        " << "enum GLenum32 : unsigned int"  << '\n';
-            stream << "        " << "{"                             << '\n';
+            stream << LF;
+            stream << std::setw( 8 ) << ' ' << "enum GLenum32" << LF;
+            stream << std::setw( 8 ) << ' ' << "{"             << LF;
 
             for( std::size_t i = 0; auto point : small )
             {
@@ -263,19 +347,20 @@ namespace moo
                     stream << value[ i ];
                 }
 
-                if( i != small.size( ) - 1 ) stream <<  ',' << '\n';
-                else                         stream << '\n';
+                if( i != small.size( ) - 1 ) stream <<  ',' << LF;
+                else                         stream << LF;
 
                 i += 1;
             }
 
-            stream << "        " << "};\n\n";
+            stream << std::setw( 8 ) << ' ' << "};" << LF;
         }
 
         if( large.size( ) > 0 )
         {
-            stream << "        " << "enum GLenum64 : unsigned long long int" << '\n';
-            stream << "        " << "{"                                      << '\n';
+            stream << LF;
+            stream << std::setw( 8 ) << ' ' << "enum GLenum64" << LF;
+            stream << std::setw( 8 ) << ' ' << "{"             << LF;
 
             for( std::size_t i = 0; auto point : large )
             {
@@ -308,16 +393,55 @@ namespace moo
                 i += 1;
             }
 
-            stream << "        " << "};\n\n";
+            stream << std::setw( 8 ) << ' ' << "};" << LF;
         }
     }
 
     void context::append_functions( std::ostream & stream )
     {
+        stream << LF << LF;
+
         for( auto & element : functions )
         {
-            stream << std::setw( 8 ) << ' ';
-            stream << element.declaration( ) << ";\n";
+            stream << std::setw( 8 ) << ' ' << element.declaration( );
+            stream << ';' << LF;
         }
+    }
+
+
+    void context::implement_commands( std::ostream & stream )
+    {
+        stream << "#include \"gl.hh\""                                << LF;
+        stream << ""                                                  << LF;
+        stream << "namespace moo"                                     << LF;
+        stream << "{"                                                 << LF;
+        stream << "    struct context" << version( )  << "::commands" << LF;
+        stream << "    {"                                             << LF;
+
+        for( const auto & element : functions )
+        {
+            stream << std::setw( 8 )   << ' ';
+            stream << element.point( ) << ';';
+            stream << LF;
+        }
+
+        stream << "    };" << LF;
+        stream << "}"      << LF;
+    }
+
+    void context::implement_functions( std::ostream & stream )
+    {
+        stream << LF << LF;
+
+        stream << "namespace moo" << LF;
+        stream << "{"             << LF;
+
+        for( auto ver = version( ); const auto & element : functions )
+        {
+            element.implementation( stream, ver );
+            stream << LF;
+        }
+
+        stream << "}"             << LF;
     }
 }

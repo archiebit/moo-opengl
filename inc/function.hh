@@ -18,13 +18,17 @@ namespace moo
         function & operator=( const function & other );
         function & operator=( function &&      other );
 
-        string & name( );
+        string &       name( );
+        const string & name( ) const;
 
-        string declaration( ) const;
-        string point( )       const;
+        string declaration( )    const;
+        string point( )          const;
+        void   implementation( std::ostream & stream, const string & version ) const;
 
         void append_output( string && type );
         void append_params( string && type, string && name );
+
+        static void types_in_use( listing & integral, listing & floating, listing & versatile );
 
     private:
         serial  tag;
