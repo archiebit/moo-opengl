@@ -1,7 +1,7 @@
 #ifndef MOO_CONTEXT_HH
 #define MOO_CONTEXT_HH
 
-#include <vector>
+#include <define.hh>
 #include <istream>
 #include <ostream>
 
@@ -10,7 +10,7 @@ namespace moo
 {
     class context
     {
-    protected:
+    public:
         class constant;
         class function;
 
@@ -18,18 +18,27 @@ namespace moo
        ~context( );
         context( );
         context( context && other );
-        context( std::istream & source, int major, int minor, bool compatible );
+        context( const string & filename, int major, int minor, bool compatible );
 
-        void save_header( std::ostream & target );
-        void save_source( std::ostream & target );
 
-        void save_constants( std::ostream & target );
+        void save( );
 
     protected:
-        static std::string version( int major, int minor, bool compatible );
+        string version( );
 
-        static void declare_types( std::ostream & stream, std::size_t tab );
-        static void declare_begin( std::ostream & stream );
+        void append_datatypes( std::ostream & stream );
+        void append_file_head( std::ostream & stream );
+
+        void class_head( std::ostream & stream );
+        void class_foot( std::ostream & stream );
+
+        void append_constants( std::ostream & stream );
+        void append_functions( std::ostream & stream );
+
+
+        int  major;
+        int  minor;
+        bool compatible;
 
         std::vector<constant> constants;
         std::vector<function> functions;

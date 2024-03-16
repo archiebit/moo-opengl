@@ -1,10 +1,8 @@
 #ifndef MOO_CONSTANT_HH
 #define MOO_CONSTANT_HH
 
+#include <define.hh>
 #include <context.hh>
-
-#include <string>
-#include <cstdint>
 
 
 namespace moo
@@ -14,14 +12,18 @@ namespace moo
     public:
        ~constant( );
         constant( const constant & other );
-        constant( std::string && name, std::uint64_t value );
+        constant( constant &&      other );
+        constant( string && name, uint value );
 
-        std::string &  name( );
-        std::uint64_t value( );
+        constant & operator=( const constant & other );
+        constant & operator=( constant &&      other );
+
+        string & name( );
+        uint &  value( );
 
     private:
-        std::string   tag;
-        std::uint64_t val;
+        string tag;
+        uint   val;
     };
 }
 

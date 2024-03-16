@@ -11,12 +11,12 @@ using namespace moo;
 
 int main( int argc, char * argv[] )
 {
-    std::ifstream file( "D:/Programing projects/moo-opengl/res/gl.xml" );
-    std::ofstream outs( "gl.hh", outs.trunc );
+    ( void )argc, ( void )argv;
 
-    context con( file, 3, 2, false );
 
-    con.save_constants( std::cout );
+    context con( "D:/Programing projects/moo-opengl/res/gl.xml", 3, 2, false );
+
+    con.save( );
 
     return 0;
 }

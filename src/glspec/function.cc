@@ -6,198 +6,171 @@
 
 namespace moo
 {
-    std::vector<std::string> context::function::tags_all;
-    std::vector<std::string> context::function::outs_all;
-    std::vector<std::string> context::function::type_all;
-    std::vector<std::string> context::function::name_all;
+    static table name_list;
+    static table type_list;
+
+    static table symbol_list;
+    static table output_list;
 }
 
 namespace moo
 {
-    context::function::~function( )
-    { }
+    using function = context::function;
 
-    context::function:: function( std::string && name, std::string && outs, std::vector<std::string> && type, std::vector<std::string> && args )
+
+    function::~function( ) = default;
+
+    function:: function( const function & other ) = default;
+
+    function:: function( function &&      other ) = default;
+
+    function:: function( string && name )
     {
-        for( auto && element : type )
-        {
-            save_type( static_cast<std::string &&>( element ) );
-        }
+        auto last = symbol_list.size( );
+        auto pair = symbol_list.emplace( last, static_cast<string &&>( name ) );
 
-        for( auto && element : args )
-        {
-            save_name( static_cast<std::string &&>( element ) );
-        }
+        tag = pair.first->first;
 
-        save_outs( static_cast<std::string &&>( outs ) );
-        save_tags( static_cast<std::string &&>( name ) );
+        append_output( "GLvoid" );
     }
 
 
-    std::string & context::function::name( )
+    function & function::operator=( const function & other ) = default;
+
+    function & function::operator=( function &&      other ) = default;
+
+
+    string & function::name( )
     {
-        return tags_all[ tag ];
-    }
-
-    std::string context::function::declaration( )
-    {
-        static std::size_t tab;
-
-        if( tab == 0 ) for( auto & outs : outs_all )
-        {
-            tab = std::max( tab, outs.length( ) );
-        }
-
-
-        std::string   s;
-        std::size_t len = outs_all[ out ].length( );
-
-        s.append( outs_all[ out ] );
-        s.append( tab - len + 1, ' ' );
-
-        s.append( tags_all[ tag ] );
-        s.append( 1, '(' );
-
-
-        for( std::size_t i = 0; i < types.size( ); ++i )
-        {
-            s.append( 1, ' ' ).append( type_all[ types[ i ] ] );
-            s.append( 1, ' ' ).append( name_all[ names[ i ] ] );
-
-
-            if( i != types.size( ) - 1 ) s.append( 1, ',' );
-        }
-
-        s.append( " )" );
-
-        return s;
-    }
-
-    std::string context::function::point( )
-    {
-        static std::size_t tag_tab;
-        static std::size_t out_tab;
-
-        if( tag_tab == 0 ) for( const auto & tag : tags_all )
-        {
-            tag_tab = std::max( tag_tab, tag.length( ) );
-        }
-
-        if( out_tab == 0 ) for( const auto & out : outs_all )
-        {
-            out_tab = std::max( out_tab, out.length( ) );
-        }
-
-
-        std::string s;
-        std::size_t len_tag = tags_all[ tag ].length( );
-        std::size_t len_out = outs_all[ out ].length( );
-
-
-        s.append( outs_all[ out ] ).append( out_tab - len_out + 1, ' ' );
-        s.append( "( * " );
-        s.append( tags_all[ tag ] ).append( tag_tab - len_tag + 1, ' ' );
-        s.append(   ")(" );
-
-        for( std::size_t i = 0; i < types.size( ); ++i )
-        {
-            s.append( 1, ' ' ).append( type_all[ types[ i ] ] );
-
-            if( i != types.size( ) - 1 ) s.append( 1, ',' );
-        }
-
-        s.append( " )" );
-
-        return s;
+        return symbol_list.at( tag );
     }
 
 
-
-    void context::function::save_outs( std::string && outs )
+    string function::declaration( ) const
     {
-        auto found = false;
-        auto index = decltype( outs_all )::size_type( 0 );
+        static usize tab;
 
-        for( index = 0; index < outs_all.size( ); ++index )
+        if( tab == 0 ) for( const auto & pair : output_list )
         {
-            if( outs_all[ index ] == outs )
-            {
-                found = true;
-                break;
-            }
+            tab = std::max( tab, pair.second.length( ) );
+        }
+
+
+        string str;
+        usize  len = output_list.at( out ).length( );
+        usize  all = types.size( );
+
+        str.append( output_list.at( out ) ).append( tab - len + 1, ' ' );
+        str.append( symbol_list.at( tag ) ).append( 1, '(' );
+
+        for( usize i = 0; i < all; ++i )
+        {
+            str.append( 1, ' ' ).append( type_list.at( types[ i ] ) );
+            str.append( 1, ' ' ).append( name_list.at( names[ i ] ) );
+
+            if( i != all - 1 ) str.append( 1, ',' );
+        }
+
+        str.append( " )" );
+
+
+        return str;
+    }
+
+    string function::point( ) const
+    {
+        static usize tag_tab;
+        static usize out_tab;
+
+        if( tag_tab == 0 ) for( const auto & pair : symbol_list )
+        {
+            tag_tab = std::max( tag_tab, pair.second.length( ) );
+        }
+
+        if( out_tab == 0 ) for( const auto & pair : output_list )
+        {
+            out_tab = std::max( out_tab, pair.second.length( ) );
+        }
+
+
+        string str;
+        usize  tag_len = symbol_list.at( tag ).length( );
+        usize  out_len = output_list.at( out ).length( );
+        usize  all     = types.size( );
+
+        str.append( output_list.at( out ) ).append( out_tab - out_len + 1, ' ' );
+        str.append( " ( * " );
+        str.append( symbol_list.at( tag ) ).append( tag_tab - tag_len + 1, ' ' );
+        str.append(    ")(" );
+
+        for( usize i = 0; i < all; ++i )
+        {
+            str.append( 1, ' ' ).append( type_list.at( types[ i ] ) );
+
+            if( i != all - 1 ) str.append( 1, ',' );
+        }
+
+        str.append( " )" );
+
+        return str;
+    }
+
+
+    void function::append_output( string && type )
+    {
+        for( auto pair : output_list ) if( pair.second == type )
+        {
+            out = pair.first;
+
+            return;
+        }
+
+        auto last = output_list.size( );
+        auto pair = output_list.emplace( last, static_cast<string &&>( type ) );
+
+        out = pair.first->first;
+    }
+
+    void function::append_params( string && type, string && name )
+    {
+        bool   found;
+        serial ttype, tname;
+
+        for( found = false; auto pair : type_list ) if( pair.second == type )
+        {
+            found = true;
+            ttype = pair.first;
+
+            break;
         }
 
         if( not found )
         {
-            outs_all.emplace_back( static_cast<std::string &&>( outs ) );
+            auto last = type_list.size( );
+            auto pair = type_list.emplace( last, static_cast<string &&>( type ) );
+
+            ttype = pair.first->first;
         }
 
-        out = index;
-    }
 
-    void context::function::save_type( std::string && type )
-    {
-        auto found = false;
-        auto index = decltype( type_all )::size_type( 0 );
-
-        for( index = 0; index < type_all.size( ); ++index )
+        for( found = false; auto pair : name_list ) if( pair.second == name )
         {
-            if( type_all[ index ] == type )
-            {
-                found = true;
-                break;
-            }
+            found = true;
+            tname = pair.first;
+
+            break;
         }
 
         if( not found )
         {
-            type_all.emplace_back( static_cast<std::string &&>( type ) );
+            auto last = name_list.size( );
+            auto pair = name_list.emplace( last, static_cast<string &&>( name ) );
+
+            tname = pair.first->first;
         }
 
-        types.emplace_back( index );
-    }
 
-    void context::function::save_name( std::string && name )
-    {
-        auto found = false;
-        auto index = decltype( name_all )::size_type( 0 );
-
-        for( index = 0; index < name_all.size( ); ++index )
-        {
-            if( name_all[ index ] == name )
-            {
-                found = true;
-                break;
-            }
-        }
-
-        if( not found )
-        {
-            name_all.emplace_back( static_cast<std::string &&>( name ) );
-        }
-
-        names.emplace_back( index );
-    }
-
-    void context::function::save_tags( std::string && name )
-    {
-        auto found = false;
-        auto index = decltype( tags_all )::size_type( 0 );
-
-        for( index = 0; index < tags_all.size( ); ++index )
-        {
-            if( tags_all[ index ] == name )
-            {
-                found = true;
-                break;
-            }
-        }
-
-        if( not found )
-        {
-            tags_all.emplace_back( static_cast<std::string &&>( name ) );
-        }
-
-        tag = index;
+        types.emplace_back( ttype );
+        names.emplace_back( tname );
     }
 }

@@ -1,9 +1,9 @@
 #ifndef MOO_PARSE_HH
 #define MOO_PARSE_HH
 
+#include <define.hh>
 #include <context.hh>
 
-#include <string>
 #include <exception>
 #include <rapidxml.hh>
 
@@ -20,7 +20,7 @@ namespace moo
 
     class parse : public context
     {
-    private:
+    public:
         using node      = rapidxml::xml_node<char>;
         using attribute = rapidxml::xml_attribute<char>;
         using document  = rapidxml::xml_document<char>;
@@ -32,32 +32,24 @@ namespace moo
         void init( );
         void exit( );
 
-        void load( std::istream & source );
+        void load( const string & filename );
         void save( int major, int minor, bool compatible );
 
     private:
-        const node * version( int major, int minor );
-        const node * require( const node * in, bool compatible, bool next = false );
-        const node * removes( const node * in, bool compatible, bool next = false );
-
+        bool version( const node *& feat, int major, int minor );
 
         const node * find_constant( const node * want );
         const node * find_function( const node * want );
 
-        void save_constant( const node * info );
-        void save_function( const node * info );
+        void parse_constant( const node * in );
+        void parse_function( const node * in );
 
-        void drop_constant( const node * info );
-        void drop_function( const node * info );
+        void erase_constant( const node * in );
+        void erase_function( const node * in );
 
 
-        char     * buff;
-        document * data;
-
-        const node * regis;
-        const node * enums;
-        const node * comms;
-        const node * feats;
+        char       * buff;
+        document   * data;
         const node * root;
     };
 }

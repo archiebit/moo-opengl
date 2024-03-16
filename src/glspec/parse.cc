@@ -3,99 +3,183 @@
 #include <function.hh>
 
 #include <iostream>
+#include <fstream>
 
 
 namespace moo
 {
-    static void trim( std::string & string )
+    using document  = parse::document;
+    using node      = parse::node;
+    using attribute = parse::attribute;
+
+
+    static string & make_nice_type( string & s )
     {
-        while( string.length( ) > 0 and string.back( ) == ' ' )
+        for( auto i = s.find( "void" ); i < s.length( ); )
         {
-            string.pop_back( );
+            s.insert( i, "GL" );
+
+            i = s.find( "void", i + 6 );
         }
 
-        while( string.length( ) > 0 and string.front( ) == ' ' )
+        for( auto i = s.find(    '*' ); i < s.length( ); )
         {
-            string.erase( 0, 1 );
-        }
-    }
-
-    static void nice( std::string & type )
-    {
-        auto i = std::string::size_type( 0 );
-        auto n = std::string::npos;
-
-        for( i = type.find( "void" ); i != n; i = type.find( "void", i + 6 ) )
-        {
-            type.insert( i, "GL" );
-        }
-
-        for( i = type.find( '*' ); i != n; i = type.find( '*', i ) )
-        {
-            auto prev = type[ i - 1 ];
-            auto next = type[ i + 1 ];
+            auto prev = i == 0 ? 0 : s[ i - 1 ];
+            auto next = s[ i + 1 ];
 
             if( next != '*' and next != ' ' and next != 0 )
             {
-                type.insert( i + 1, " " ); i += 1;
+                s.insert( i + 1, 1, ' ' );
+
+                i = s.find( '*', i + 1 );
+
                 continue;
             }
 
-            if( prev != '*' and prev != ' ' )
+            if( prev != '*' and prev != ' ' and prev != 0 )
             {
-                type.insert( i - 1, " " ); i += 2;
+                s.insert( i, 1, ' ' );
+
+                i = s.find( '*', i + 2 );
+
                 continue;
             }
 
             i += 1;
         }
+
+        return s;
     }
 
-    static bool type_part( const rapidxml::xml_node<char> * node )
+
+    static bool type_part( const node * in )
     {
         using rapidxml::node_data;
         using rapidxml::node_element;
 
-        switch( node->type( ) )
+
+        switch( in->type( ) )
         {
             case node_data:    return true;
-            case node_element: return std::strcmp( node->name( ), "ptype" ) == 0;
+            case node_element: return std::strcmp( in->name( ), "ptype" ) == 0;
 
             default:           return false;
         }
-
-        return false;
     }
 
-    static bool name_part( const rapidxml::xml_node<char> * node )
+    static bool name_part( const node * in )
     {
         using rapidxml::node_element;
 
-        if( node->type( ) != node_element )
+
+        if( in->type( ) != node_element )
         {
             return false;
         }
 
-        return std::strcmp( node->name( ), "name" ) == 0;
+        return std::strcmp( in->name( ), "name" ) == 0;
+    }
+
+
+    static string & prepare_type( const char s[], string & output )
+    {
+        static string temp;
+
+
+        temp = s;
+
+        while( temp.length( ) > 0 and temp.back( ) == ' ' )
+        {
+            temp.pop_back( );
+        }
+
+        while( temp.length( ) > 0 and temp.front( ) == ' ' )
+        {
+            temp.erase( 0, 1 );
+        }
+
+        if( temp.length( ) == 0 )
+        {
+            throw parse_exception( );
+        }
+
+
+        if( output.length( ) > 0 ) output.append( 1, ' ' ).append( temp );
+        else                       output.append( temp );
+
+
+        return output;
+    }
+
+    static string & prepare_name( const char s[], string & symbol )
+    {
+        static string temp;
+
+
+        temp = s;
+
+        while( temp.length( ) > 0 and temp.back( ) == ' ' )
+        {
+            temp.pop_back( );
+        }
+
+        while( temp.length( ) > 0 and temp.front( ) == ' ' )
+        {
+            temp.erase( 0, 1 );
+        }
+
+
+        if( temp.length( ) == 0 or symbol.length( ) != 0 )
+        {
+            throw parse_exception( );
+        }
+
+
+        return symbol.append( temp );
+    }
+
+
+    static bool find( const node *& child, const node * parent, const char name[] = nullptr )
+    {
+        if( not parent )
+        {
+            throw parse_exception( );
+        }
+
+        return child = parent->first_node( name );
+    }
+
+    static bool next( const node *& child, const char name[] = nullptr )
+    {
+        if( not child )
+        {
+            throw parse_exception( );
+        }
+
+        return child = child->next_sibling( name );
     }
 }
+
+
 namespace moo
 {
     parse_exception::~parse_exception( ) = default;
 
     parse_exception:: parse_exception( ) = default;
+}
 
+namespace moo
+{
+    parse::~parse( ) = default;
 
-    parse::~parse( )
-    { }
-
-    parse:: parse( )
-    { }
+    parse:: parse( ) = default;
 
 
     void parse::init( )
     {
-        std::memset( this, 0, sizeof( parse ) );
+        data = nullptr;
+        buff = nullptr;
+        root = nullptr;
     }
 
     void parse::exit( )
@@ -105,27 +189,24 @@ namespace moo
     }
 
 
-    void parse::load( std::istream & source )
+    void parse::load( const string & filename )
     {
-        using io = std::istream;
+        using stream = std::ifstream;
 
-        auto state = source.exceptions( );
+        stream source;
+        usize  total;
 
         try
         {
-            source.exceptions( io::failbit | io::badbit | io::eofbit );
+            source.exceptions( ~stream::goodbit );
+            source.open( filename );
 
-            source.seekg( 0, io::end );
+            source.seekg( 0, stream::end ), total = source.tellg( );
+            source.seekg( 0, stream::beg );
 
-            std::size_t size = source.tellg( );
+            buff = new char[ total + 1 ]( );
 
-            buff = new char[ size + 1 ]( );
-
-            source.seekg( 0, io::beg );
-
-            source.read( buff, size );
-
-            source.exceptions( state );
+            source.read( buff, total );
         }
         catch( std::exception & )
         {
@@ -139,23 +220,7 @@ namespace moo
 
         data->parse<rapidxml::parse_default>( buff );
 
-
-        regis = data->first_node( "registry" );
-
-        if( not regis )
-        {
-            std::cerr << "File contents are invalid.";
-            std::cerr << std::endl;
-
-            throw parse_exception( );
-        }
-
-        root  = regis;
-        enums = regis->first_node(    "enums" );
-        comms = regis->first_node( "commands" );
-        feats = regis->first_node(  "feature" );
-
-        if( not enums or not comms or not feats )
+        if( not find( root, data, "registry" ) )
         {
             std::cerr << "File contents are invalid.";
             std::cerr << std::endl;
@@ -166,16 +231,13 @@ namespace moo
 
     void parse::save( int major, int minor, bool compatible )
     {
-        int maj = 1;
-        int min = 0;
+        const node * feat;
+        const node * fold;
+        const node * step;
 
-        const node * feat = nullptr;
-        const node * part = nullptr;
-        const node * elem = nullptr;
-
-        while( true )
+        for( int maj = 1, min = 0; maj <= major and min <= minor; )
         {
-            if( not ( feat = version( maj, min ) ) )
+            if( not version( feat, maj, min ) )
             {
                 maj += 1;
                 min -= min;
@@ -183,188 +245,144 @@ namespace moo
                 continue;
             }
 
-            if( feat )
-            {
-                for( part = require( feat, compatible ); part; part = require( part, compatible, true ) )
-                {
-                    for( elem = part->first_node( "enum" ); elem; elem = elem->next_sibling( "enum" ) )
-                    {
-                        save_constant( find_constant( elem ) );
-                    }
 
-                    for( elem = part->first_node( "command" ); elem; elem = elem->next_sibling( "command" ) )
-                    {
-                        save_function( find_function( elem ) );
-                    }
+            static const char core[] = "core";
+            static const char comp[] = "compatibility";
+
+            static const char cons[] = "enum";
+            static const char func[] = "command";
+
+
+            for( find( fold, feat, "require" ); fold; next( fold, "require" ) )
+            {
+                if( auto profile = fold->first_attribute( "profile" ) )
+                {
+                    auto is_core = std::strcmp( profile->value( ), core ) == 0;
+                    auto is_comp = std::strcmp( profile->value( ), comp ) == 0;
+
+                    if( is_core and     compatible ) continue;
+                    if( is_comp and not compatible ) continue;
                 }
 
-                for( part = removes( feat, compatible ); part; part = removes( part, compatible, true ) )
-                {
-                    for( elem = part->first_node( "enum" ); elem; elem = elem->next_sibling( "enum" ) )
-                    {
-                        drop_constant( elem );
-                    }
 
-                    for( elem = part->first_node( "command" ); elem; elem = elem->next_sibling( "command" ) )
-                    {
-                        drop_function( elem );
-                    }
+                for( find( step, fold, cons ); step; next( step, cons ) )
+                {
+                    parse_constant( find_constant( step ) );
+                }
+
+                for( find( step, fold, func ); step; next( step, func ) )
+                {
+                    parse_function( find_function( step ) );
                 }
             }
 
-            if( maj >= major and min >= minor ) break;
+            for( find( fold, feat,  "remove" ); fold; next( fold,  "remove" ) )
+            {
+                if( auto profile = fold->first_attribute( "profile" ) )
+                {
+                    auto is_core = std::strcmp( profile->value( ), core ) == 0;
+                    auto is_comp = std::strcmp( profile->value( ), comp ) == 0;
+
+                    if( is_core and     compatible ) continue;
+                    if( is_comp and not compatible ) continue;
+                }
+
+
+                for( find( step, fold, cons ); step; next( step, cons ) )
+                {
+                    erase_function( step );
+                }
+
+                for( find( step, fold, func ); step; next( step, func ) )
+                {
+                    erase_function( step );
+                }
+            }
 
             min += 1;
         }
     }
 
 
-
-    const parse::node * parse::version( int major, int minor )
+    bool parse::version( const node *& feat, int major, int minor )
     {
         char num[] = "0.0"; num[ 0 ] += major; num[ 2 ] += minor;
         char ver[] =  "gl";
 
-        if( not root ) throw parse_exception( );
-
-
-        auto step = root->first_node( "feature" );
-
-        while( step )
+        for( find( feat, root, "feature" ); feat; next( feat, "feature" ) )
         {
-            auto api    = step->first_attribute(    "api" );
-            auto number = step->first_attribute( "number" );
+            auto family = feat->first_attribute(    "api" );
+            auto number = feat->first_attribute( "number" );
 
-            if( not api or not number )
+            if( not family or not number )
             {
                 throw parse_exception( );
             }
 
-            auto a = std::strcmp(    api->value( ), ver ) == 0;
+            auto a = std::strcmp( family->value( ), ver ) == 0;
             auto b = std::strcmp( number->value( ), num ) == 0;
 
-            if( a and b ) return step;
-
-            step = step->next_sibling( "feature" );
+            if( a and b ) return true;
         }
 
-        return nullptr;
+        return false;
     }
 
-    const parse::node * parse::require( const node * in, bool compatible, bool next )
-    {
-        const char core[] = "core";
-        const char comp[] = "compatibility";
 
+    const node * parse::find_constant( const node * in )
+    {
+        if( not in or not in->first_attribute( "name" ) )
+        {
+            throw parse_exception( );
+        }
+
+        const char * want = in->first_attribute( "name" )->value( );
+        const node * fold;
         const node * step;
 
-        if( next ) step = in->next_sibling( "require" );
-        else       step = in->first_node( "require" );
-
-        while( step )
+        for( find( fold, root, "enums" ); fold; next( fold, "enums" ) )
+        for( find( step, fold,  "enum" ); step; next( step,  "enum" ) )
         {
-            auto prof = step->first_attribute( "profile" );
+            auto name = step->first_attribute(  "name" );
+            auto uval = step->first_attribute( "value" );
+
+            if( not name or not uval ) throw parse_exception( );
 
 
-            if( not prof ) return step;
-
-            if( std::strcmp( prof->value( ), core ) == 0 and not compatible )
+            if( std::strcmp( name->value( ), want ) == 0 )
             {
                 return step;
             }
-
-            if( std::strcmp( prof->value( ), comp ) == 0 and compatible )
-            {
-                return step;
-            }
-
-            step = step->next_sibling( "require" );
         }
 
         return nullptr;
     }
 
-    const parse::node * parse::removes( const node * in, bool compatible, bool next )
+    const node * parse::find_function( const node * in )
     {
-        const char core[] = "core";
-        const char comp[] = "compatibility";
+        if( not in or not in->first_attribute( "name" ) )
+        {
+            throw parse_exception( );
+        }
 
+
+        const char * want = in->first_attribute( "name" )->value( );
+        const node * fold;
         const node * step;
 
-        if( next ) step = in->next_sibling( "remove" );
-        else       step = in->first_node( "remove" );
-
-        while( step )
+        for( find( fold, root, "commands" ); fold; next( fold, "commands" ) )
+        for( find( step, fold,  "command" ); step; next( step,  "command" ) )
         {
-            auto prof = step->first_attribute( "profile" );
+            const node * prot = step->first_node( "proto" );
+            const node * name = nullptr;
 
-
-            if( not prof ) return step;
-
-            if( std::strcmp( prof->value( ), core ) == 0 and not compatible )
+            if( not prot or not ( name = prot->first_node( "name" ) ) )
             {
-                return step;
+                throw parse_exception( );
             }
 
-            if( std::strcmp( prof->value( ), comp ) == 0 and compatible )
-            {
-                return step;
-            }
 
-            step = step->next_sibling( "remove" );
-        }
-
-        return nullptr;
-    }
-
-
-    const parse::node * parse::find_constant( const node * want )
-    {
-        auto name = want->first_attribute( "name" );
-
-        if( not name )
-        {
-            return nullptr;
-        }
-
-
-        for( auto fold = enums;                      fold; fold = fold->next_sibling( "enums" ) )
-        for( auto step = fold->first_node( "enum" ); step; step = step->next_sibling(  "enum" ) )
-        {
-            auto tag = step->first_attribute(  "name" );
-            auto val = step->first_attribute( "value" );
-
-            if( tag and val and std::strcmp( tag->value( ), name->value( ) ) == 0 )
-            {
-                return step;
-            }
-        }
-
-        return nullptr;
-    }
-
-    const parse::node * parse::find_function( const node * want )
-    {
-        auto name = want->first_attribute( "name" );
-
-        if( not name )
-        {
-            return nullptr;
-        }
-
-
-        for( auto fold = comms;                         fold; fold = fold->next_sibling( "commands" ) )
-        for( auto step = fold->first_node( "command" ); step; step = step->next_sibling(  "command" ) )
-        {
-            const node * proto = step->first_node( "proto" );
-            const node * tag   = nullptr;
-
-            if( proto )
-            {
-                tag = proto->first_node( "name" );
-            }
-
-            if( tag and std::strcmp( tag->value( ), name->value( ) ) == 0 )
+            if( std::strcmp( name->value( ), want ) == 0 )
             {
                 return step;
             }
@@ -374,118 +392,110 @@ namespace moo
     }
 
 
-    void parse::save_constant( const node * info )
+    void parse::parse_constant( const node * in )
     {
-        auto name  = info->first_attribute(  "name" );
-        auto value = info->first_attribute( "value" );
+        if( not in ) throw parse_exception( );
 
 
-        std::string   tag = name->value( );
-        std::uint64_t val = std::strtoull( value->value( ), nullptr, 0 );
+        auto label = in->first_attribute(  "name" );
+        auto value = in->first_attribute( "value" );
 
-        constants.emplace_back( static_cast<std::string &&>( tag ), val );
+        string name = label->value( );
+        uint   uval = std::strtoull( value->value( ), nullptr, 0 );
+
+        constants.emplace_back( static_cast<string &&>( name ), uval );
     }
 
-    void parse::save_function( const node * info )
+    void parse::parse_function( const node * in )
     {
-        std::vector<std::string> types;
-        std::vector<std::string> names;
-        std::string tag;
-        std::string out;
-
-        const node * fold = info->first_node( "proto" );
-        const node * step = nullptr;
+        if( not in ) throw parse_exception( );
 
 
-        for( step = fold->first_node( ); step; step = step->next_sibling( ) )
+        strings  types,  names;
+        string  symbol, output;
+
+        const node * fold = in->first_node( "proto" );
+        const node * step;
+        const node * part;
+
+
+        for( find( step, fold ); step; next( step ) )
         {
-            std::string temp;
-
             if( type_part( step ) )
             {
-                trim( temp = step->value( ) );
-
-                if( out.length( ) > 0 and out.back( ) != ' ' )
-                {
-                    out.append( 1, ' ' );
-                }
-
-                out += temp;
+                prepare_type( step->value( ), output );
             }
             else if( name_part( step ) )
             {
-                trim( tag = step->value( ) );
+                prepare_name( step->value( ), symbol );
             }
             else throw parse_exception( );
         }
 
-        nice( out );
 
-        for( fold = info->first_node( "param" ); fold; fold = fold->next_sibling( "param" ) )
+        for( find( step,   in, "param" ); step; next( step, "param" ) )
         {
-            std::string type;
-            std::string name;
+            auto & type = types.emplace_back( );
+            auto & name = names.emplace_back( );
 
-            for( step = fold->first_node( ); step; step = step->next_sibling( ) )
+            for( find( part, step ); part; next( part ) )
             {
-                std::string temp;
-
-                if( type_part( step ) )
+                if( type_part( part ) )
                 {
-                    trim( temp = step->value( ) );
-
-                    if( type.length( ) > 0 and type.back( ) != ' ' )
-                    {
-                        type.append( 1, ' ' );
-                    }
-
-                    type += temp;
+                    prepare_type( part->value( ), type );
                 }
-                else if( name_part( step ) )
+                else if( name_part( part ) )
                 {
-                    trim( name = step->value( ) );
+                    prepare_name( part->value( ), name );
                 }
                 else throw parse_exception( );
             }
-
-            nice( type );
-
-            types.emplace_back( static_cast<std::string &&>( type ) );
-            names.emplace_back( static_cast<std::string &&>( name ) );
         }
 
 
-        functions.emplace_back( std::move( tag ), std::move( out ), std::move( types ), std::move( names ) );
-    }
+        auto & curr = functions.emplace_back( std::move( symbol ) );
 
+        curr.append_output( std::move( make_nice_type( output ) ) );
 
-    void parse::drop_constant( const node * info )
-    {
-        auto label = info->first_attribute( "name" )->value( );
-        auto index = decltype( constants )::size_type( );
-
-        for( index = 0; index < constants.size( ); ++index )
+        for( usize i = 0; i < types.size( ); ++i )
         {
-            if( constants[ index ].name( ) == label )
-            {
-                constants.erase( constants.cbegin( ) + index );
-                break;
-            }
+            auto & type = make_nice_type( types[ i ] );
+            auto & name = names[ i ];
+
+            curr.append_params( std::move( type ), std::move( name ) );
         }
     }
 
-    void parse::drop_function( const node * info )
-    {
-        auto label = info->first_attribute( "name" )->value( );
-        auto index = decltype( functions )::size_type( );
 
-        for( index = 0; index < functions.size( ); ++index )
+    void parse::erase_constant( const node * in )
+    {
+        if( not in ) throw parse_exception( );
+
+
+        string name = in->first_attribute( "name" )->value( );
+        usize   all = constants.size( );
+
+        for( usize i = 0; i < all; ++i ) if( constants[ i ].name( ) == name )
         {
-            if( functions[ index ].name( ) == label )
-            {
-                functions.erase( functions.cbegin( ) + index );
-                break;
-            }
+            constants.erase( constants.cbegin( ) + i );
+
+            break;
+        }
+    }
+
+    void parse::erase_function( const node * in )
+    {
+        if( not in ) throw parse_exception( );
+
+
+        string name = in->first_attribute( "name" )->value( );
+        usize   all = functions.size( );
+
+        for( usize i = 0; i < all; ++i ) if( functions[ i ].name( ) == name )
+        {
+            functions.erase( functions.cbegin( ) + i );
+
+            break;
         }
     }
 }
