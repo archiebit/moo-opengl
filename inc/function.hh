@@ -20,6 +20,8 @@ namespace moo
 
         string &       name( );
         const string & name( ) const;
+        string context_name( ) const;
+
 
         string declaration( )    const;
         string point( )          const;

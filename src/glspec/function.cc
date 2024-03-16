@@ -91,6 +91,14 @@ namespace moo
         return symbol_list.at( tag );
     }
 
+    string function::context_name( ) const
+    {
+        auto starts = name( ).find( "gl" );
+
+        if( starts == 0 ) return name( ).c_str( ) + 2;
+        else              return name( );
+    }
+
 
     string function::declaration( ) const
     {
@@ -107,7 +115,7 @@ namespace moo
         usize  all = types.size( );
 
         str.append( output_list.at( out ) ).append( tab - len + 1, ' ' );
-        str.append( symbol_list.at( tag ) ).append( 1, '(' );
+        str.append( context_name( ) ).append( 1, '(' );
 
         for( usize i = 0; i < all; ++i )
         {
@@ -128,9 +136,14 @@ namespace moo
         static usize tag_tab;
         static usize out_tab;
 
-        if( tag_tab == 0 ) for( const auto & pair : symbol_list )
+        if( tag_tab == 0 )
         {
-            tag_tab = std::max( tag_tab, pair.second.length( ) );
+            for( const auto & pair : symbol_list )
+            {
+                tag_tab = std::max( tag_tab, pair.second.length( ) );
+            }
+
+            tag_tab += 2;
         }
 
         if( out_tab == 0 ) for( const auto & pair : output_list )
@@ -179,17 +192,17 @@ namespace moo
             }
 
             out_tab += version.length( );
-            out_tab += 7;
+            out_tab += 9;
         }
 
 
         string back = make_context_type( output_list.at( out ), version );
 
-        stream << std::left << std::setw( 4 ) << " ";
+        stream << std::left << std::setw( 4 ) << ' ';
         stream << std::setw( out_tab );
         stream << back                  << " context";
         stream << version               << "::";
-        stream << symbol_list.at( tag ) << "(";
+        stream << context_name( )       << "(";
 
 
         usize i;
@@ -214,68 +227,35 @@ namespace moo
             stream << "return ( * call->glGetError )( );" << LF;
             stream << std::setw( 4 ) << ' ';
             stream << '}'                                 << LF;
-
-            return;
         }
-
-        stream << std::setw( 4 ) << ' ';
-        stream << "#ifdef NDEBUG" << LF;
-
-        stream << std::setw( 8 ) << ' ';
-        stream << "return ( * call->" << name( ) << " )(";
-
-        for( i = 0; i < len; ++i )
+        else if( output_list.at( out ) == "GLvoid" )
         {
-            stream << ' ' << name_list[ names[ i ] ];
+            stream << std::setw( 8 ) << ' ';
+            stream << "IMPLEMENT_VOID( " << context_name( );
 
-            if( i != len - 1 ) stream << ',';
-        }
+            for( i = 0; i < len; ++i )
+            {
+                stream << ',' << ' ' << name_list[ names[ i ] ];
+            }
 
-        stream << ' ' << ')' << ';' << LF;
-
-
-        stream << std::setw( 4 ) << ' ';
-        stream << "#else" << LF;
-
-        stream << std::setw( 8 ) << ' ';
-        stream << "while( ( * call->glGetError )( ) != GL_NO_ERROR );" << LF << LF;
-
-        stream << std::setw( 8 ) << ' ';
-
-        if( output_list.at( out ) == "GLvoid" )
-        {
-            stream << "( * call->" << name( ) << " )(";
+            stream << " )" << LF;
+            stream << std::setw( 4 ) << ' ';
+            stream << '}' << LF;
         }
         else
         {
-            stream << "auto back = ( * call->" << name( ) << " )(";
+            stream << std::setw( 8 ) << ' ';
+            stream << "IMPLEMENT_TYPE( " << context_name( );
+
+            for( i = 0; i < len; ++i )
+            {
+                stream << ',' << ' ' << name_list[ names[ i ] ];
+            }
+
+            stream << " )" << LF;
+            stream << std::setw( 4 ) << ' ';
+            stream << '}' << LF;
         }
-
-        for( i = 0; i < len; ++i )
-        {
-            stream << ' ' << name_list[ names[ i ] ];
-
-            if( i != len - 1 ) stream << ',';
-        }
-
-        stream << ' ' << ')' << ';' << LF;
-
-        stream << std::setw( 8 ) << ' ';
-        stream << "auto code = ( * call->glGetError )( );" << LF << LF;
-
-        stream << std::setw( 8 ) << ' ';
-        stream << "if( code != GL_NO_ERROR )"             << LF;
-        stream << std::setw( 8 ) << ' ' << '{'            << LF;
-        stream << std::setw( 12 ) << ' ' << "throw code;"  << LF;
-        stream << std::setw( 8 ) << ' ' << '}'            << LF << LF;
-
-        if( output_list.at( out ) != "GLvoid" )
-        {
-            stream << std::setw( 8 ) << ' ' << "return back;" << LF;
-        }
-
-        stream << std::setw( 4 ) << ' ' << "#endif" << LF;
-        stream << std::setw( 4 ) << ' ' << '}'      << LF;
     }
 
 

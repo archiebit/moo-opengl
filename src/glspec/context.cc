@@ -13,6 +13,7 @@ namespace moo
 {
     static const char LF = '\n';
 }
+
 namespace moo
 {
     string context::version( )
@@ -173,71 +174,42 @@ namespace moo
 
     void context::append_file_head( std::ostream & stream )
     {
-        static const char * const code[]
-        {
-            "namespace moo",
-            "{",
-            "    enum profile",
-            "    {",
-            "        CORE,",
-            "        COMPATIBLE",
-            "    };",
-            "",
-            "    template <int major, int minor, profile option>",
-            "    class context;",
-            "}",
-            ""
-        };
-
-        for( auto string : code )
-        {
-            stream << string << '\n';
-        }
+        stream << "namespace moo"                                                            << LF;
+        stream << "{"                                                                        << LF;
+        stream << std::setw( 4 ) << ' ' << "enum profile"                                    << LF;
+        stream << std::setw( 4 ) << ' ' << "{"                                               << LF;
+        stream << std::setw( 8 ) << ' ' << "CORE,"                                           << LF;
+        stream << std::setw( 8 ) << ' ' << "COMPATIBLE"                                      << LF;
+        stream << std::setw( 4 ) << ' ' << "};"                                              << LF;
+        stream                                                                               << LF;
+        stream << std::setw( 4 ) << ' ' << "template <int major, int minor, profile option>" << LF;
+        stream << std::setw( 4 ) << ' ' << "class context;"                                  << LF;
+        stream << "}"                                                                        << LF;
+        stream                                                                               << LF;
     }
 
     void context::class_head( std::ostream & stream )
     {
-        static const char * const code[]
-        {
-            "namespace moo",
-            "{",
-            "    template <>",
-            "    class context",
-            "    {",
-            "    public:",
-            "       ~context( );",
-            "        context( );",
-            "        context( const context & ) = delete;",
-            "        context( context &&      ) = delete;"
-        };
-
-        for( std::size_t i = 0; auto string : code )
-        {
-            stream << string;
-
-            if( i == 3 ) stream << version( ) << LF;
-            else         stream << LF;
-
-            i += 1;
-        }
+        stream << "namespace moo"                                                 << LF;
+        stream << "{"                                                             << LF;
+        stream << std::setw( 4 ) << ' ' << "template <>"                          << LF;
+        stream << std::setw( 4 ) << ' ' << "class context" << version( )          << LF;
+        stream << std::setw( 4 ) << ' ' << "{"                                    << LF;
+        stream << std::setw( 4 ) << ' ' << "public:"                              << LF;
+        stream << std::setw( 7 ) << ' ' << "~context( );"                         << LF;
+        stream << std::setw( 8 ) << ' ' << "context( );"                          << LF;
+        stream << std::setw( 8 ) << ' ' << "context( const context & ) = delete;" << LF;
+        stream << std::setw( 8 ) << ' ' << "context( context &&      ) = delete;" << LF;
     }
 
     void context::class_foot( std::ostream & stream )
     {
-        static const char * const code[]
-        {
-            "",
-            "    private:",
-            "        struct commands;",
-            "        struct commands * call;",
-            "    };",
-            "}"
-        };
-
-        for( auto string : code )
-        {
-            stream << string << '\n';
-        }
+        stream << LF;
+        stream << std::setw( 4 ) << ' ' << "private:"                << LF;
+        stream << std::setw( 8 ) << ' ' << "struct commands;"        << LF;
+        stream << std::setw( 8 ) << ' ' << "struct commands * call;" << LF;
+        stream << std::setw( 4 ) << ' ' << "};"                      << LF;
+        stream << "}"                                                << LF;
     }
 }
 
@@ -411,8 +383,44 @@ namespace moo
 
     void context::implement_commands( std::ostream & stream )
     {
-        stream << "#include \"gl.hh\""                                << LF;
-        stream << ""                                                  << LF;
+        stream << "#include \"gl.hh\""                                                          << LF;
+        stream << ""                                                                            << LF;
+        stream << ""                                                                            << LF;
+
+        stream << "#ifdef NDEBUG"                                                               << LF;
+
+        stream << "#   define IMPLEMENT_VOID( name, ... )                                  \\"  << LF;
+        stream << "    return ( * call->gl ## name )( __VA_ARGS__ );"                           << LF;
+        stream                                                                                  << LF;
+        stream << "#   define IMPLEMENT_TYPE( name, ... )                                  \\"  << LF;
+        stream << "    return ( * call->gl ## name )( __VA_ARGS__ );"                           << LF;
+
+        stream << "#else"                                                                       << LF;
+
+        stream << "#   define IMPLEMENT_VOID( name, ... )                                  \\"  << LF;
+        stream << "    while( ( * call->glGetError )( ) != GL_NO_ERROR );                  \\"  << LF;
+        stream << "                                                                        \\"  << LF;
+        stream << "    ( * call->gl ## name )( __VA_ARGS__ );                              \\"  << LF;
+        stream << "                                                                        \\"  << LF;
+        stream << "    if( GLenum code = ( * call->glGetError )( ); code != GL_NO_ERROR )  \\"  << LF;
+        stream << "    {                                                                   \\"  << LF;
+        stream << "        throw code;                                                     \\"  << LF;
+        stream << "    }"                                                                       << LF;
+        stream                                                                                  << LF;
+        stream << "#   define IMPLEMENT_TYPE( name, ... )                                  \\"  << LF;
+        stream << "    while( ( * call->glGetError )( ) != GL_NO_ERROR );                  \\"  << LF;
+        stream << "                                                                        \\"  << LF;
+        stream << "    auto back = ( * call->gl ## name )( __VA_ARGS__ );                  \\"  << LF;
+        stream << "                                                                        \\"  << LF;
+        stream << "    if( GLenum code = ( * call->glGetError )( ); code != GL_NO_ERROR )  \\"  << LF;
+        stream << "    {                                                                   \\"  << LF;
+        stream << "        throw code;                                                     \\"  << LF;
+        stream << "    }                                                                   \\"  << LF;
+        stream << "    else return back;"                                                       << LF;
+
+        stream << "#endif"                                                                      << LF;
+        stream << ""                                                                            << LF;
+
         stream << "namespace moo"                                     << LF;
         stream << "{"                                                 << LF;
         stream << "    struct context" << version( )  << "::commands" << LF;

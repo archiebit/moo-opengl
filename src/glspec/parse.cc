@@ -235,7 +235,7 @@ namespace moo
         const node * fold;
         const node * step;
 
-        for( int maj = 1, min = 0; maj <= major and min <= minor; )
+        for( int maj = 1, min = 0; ; )
         {
             if( not version( feat, maj, min ) )
             {
@@ -299,7 +299,11 @@ namespace moo
                 }
             }
 
-            min += 1;
+            if( maj != major or min != minor )
+            {
+                min += 1;
+            }
+            else break;
         }
     }
 
